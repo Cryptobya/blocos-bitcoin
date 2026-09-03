@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Últimos 10 blocos · Rede Bitcoin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0b0d12;
+    --panel: #12151d;
+    --panel-2: #171b26;
+    --line: #232838;
+    --text: #e7e9ee;
+    --text-dim: #8b93a7;
+    --text-faint: #565f74;
+    --btc: #f7931a;
+    --btc-dim: #7a5320;
+    --teal: #4fd1c5;
+    --danger: #e5484d;
+    --radius: 3px;
+  }
+  *{ box-sizing:border-box; }
+  html,body{
+    margin:0; padding:0;
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(247,147,26,0.07), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Space Grotesk', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{ font-family:'JetBrains Mono', monospace; }
+
+  header.top{
+    max-width:980px; margin:0 auto; padding:56px 24px 28px;
+    border-bottom:1px solid var(--line);
+  }
+  header.top h1{
+    font-size:28px; font-weight:600; margin:0 0 6px; letter-spacing:-0.01em;
+  }
+  header.top p.sub{
+    color:var(--text-dim); font-size:15px; margin:0 0 24px; max-width:56ch; line-height:1.55;
+  }
+  .status-bar{
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:12px;
+    padding-top:18px; border-top:1px solid var(--line);
+  }
+  .status-left{ display:flex; align-items:center; gap:18px; flex-wrap:wrap; }
+  .status-item{ display:flex; flex-direction:column; gap:2px; }
+  .status-item .label{ font-size:11px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.06em; }
+  .status-item .value{ font-family:'JetBrains Mono', monospace; font-size:15px; color:var(--text); }
+  .live-dot{
+    width:8px; height:8px; border-radius:50%; background:var(--teal);
+    display:inline-block; margin-right:7px; position:relative; top:-1px;
+    box-shadow:0 0 0 0 rgba(79,209,197,0.6);
+    animation:pulse 2.2s infinite;
+  }
+  @keyframes pulse{
+    0%{ box-shadow:0 0 0 0 rgba(79,209,197,0.45); }
+    70%{ box-shadow:0 0 0 8px rgba(79,209,197,0); }
+    100%{ box-shadow:0 0 0 0 rgba(79,209,197,0); }
+  }
+  button.refresh{
+    background:transparent; border:1px solid var(--line); color:var(--text-dim);
+    font-family:'Space Grotesk', sans-serif; font-size:13px; padding:9px 16px;
+    border-radius:var(--radius); cursor:pointer; transition:border-color .15s, color .15s;
+  }
+  button.refresh:hover{ border-color:var(--btc-dim); color:var(--text); }
+  button.refresh:focus-visible, button:focus-visible, a:focus-visible{
+    outline:2px solid var(--teal); outline-offset:2px;
+  }
+
+  main{ max-width:980px; margin:0 auto; padding:36px 24px 80px; }
+
+  .chain{ position:relative; }
+  .chain::before{
+    content:""; position:absolute; left:29px; top:14px; bottom:14px; width:1px;
+    background:linear-gradient(var(--line), var(--line));
+    background-size:1px 8px; background-repeat:repeat-y;
+  }
+
+  .block{
+    position:relative; margin-bottom:18px; padding-left:64px;
+  }
+  .block .node{
+    position:absolute; left:20px; top:22px; width:19px; height:19px;
+    border-radius:50%; background:var(--panel-2); border:2px solid var(--btc-dim);
+    display:flex; align-items:center; justify-content:center; z-index:1;
+  }
+  .block .node::after{
+    content:""; width:7px; height:7px; border-radius:50%; background:var(--btc);
+  }
+  .block.is-new .node{ animation:flash 1.8s ease-out; }
+  @keyframes flash{
+    0%{ border-color:var(--teal); box-shadow:0 0 0 6px rgba(79,209,197,0.18); }
+    100%{ border-color:var(--btc-dim); box-shadow:0 0 0 0 rgba(79,209,197,0); }
+  }
+
+  .card{
+    background:var(--panel); border:1px solid var(--line); border-radius:var(--radius);
+    overflow:hidden;
+  }
+  .block.is-new .card{ animation:glow 1.8s ease-out; }
+  @keyframes glow{
+    0%{ border-color:var(--teal); }
+    100%{ border-color:var(--line); }
+  }
+
+  .card-head{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:16px 20px; cursor:pointer; user-select:none;
+  }
+  .card-head:hover{ background:var(--panel-2); }
+  .height-block{ display:flex; align-items:baseline; gap:12px; min-width:0; }
+  .height-num{ font-family:'JetBrains Mono', monospace; font-size:21px; font-weight:600; color:var(--btc); white-space:nowrap; }
+  .hash-preview{ font-family:'JetBrains Mono', monospace; font-size:12.5px; color:var(--text-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .head-meta{ display:flex; align-items:center; gap:18px; flex-shrink:0; }
+  .head-meta .m{ text-align:right; }
+  .head-meta .m .n{ font-family:'JetBrains Mono', monospace; font-size:13.5px; color:var(--text); }
+  .head-meta .m .l{ font-size:10.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.05em; }
+  .chevron{ color:var(--text-faint); transition:transform .18s; flex-shrink:0; }
+  .block.open .chevron{ transform:rotate(180deg); }
+
+  .card-body{
+    display:none; border-top:1px solid var(--line);
+    padding:20px; background:var(--bg);
+  }
+  .block.open .card-body{ display:block; }
+
+  .section-label{
+    display:flex; align-items:baseline; gap:10px; margin:0 0 12px;
+  }
+  .section-label h3{
+    font-size:13px; font-weight:600; margin:0; color:var(--text);
+  }
+  .section-label .hint{
+    font-size:11.5px; color:var(--text-faint);
+  }
+  .section-label .tag{
+    font-size:10px; text-transform:uppercase; letter-spacing:0.05em;
+    color:var(--btc); border:1px solid var(--btc-dim); border-radius:2px;
+    padding:2px 6px; font-family:'Space Grotesk', sans-serif;
+  }
+  .section-block + .section-block{ margin-top:24px; padding-top:20px; border-top:1px dashed var(--line); }
+
+  .header-grid{
+    display:grid; grid-template-columns:150px 1fr; gap:10px 16px;
+    font-size:13.5px;
+  }
+  .header-grid dt{ color:var(--text-faint); font-size:12px; text-transform:uppercase; letter-spacing:0.05em; padding-top:2px; }
+  .header-grid dd{ margin:0; font-family:'JetBrains Mono', monospace; color:var(--text); word-break:break-all; line-height:1.5; }
+  .header-grid dd.wrap-normal{ font-family:'Space Grotesk', sans-serif; word-break:normal; }
+
+  .tx-toggle{
+    margin-top:20px; padding-top:18px; border-top:1px dashed var(--line);
+  }
+  .tx-toggle button{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    font-family:'Space Grotesk', sans-serif; font-size:13px; padding:9px 14px;
+    border-radius:var(--radius); cursor:pointer; transition:border-color .15s;
+  }
+  .tx-toggle button:hover{ border-color:var(--btc-dim); }
+  .tx-list{ margin-top:16px; }
+  .tx-list .tx-status{ color:var(--text-dim); font-size:13px; padding:8px 0; }
+  table.tx-table{ width:100%; border-collapse:collapse; font-size:13px; }
+  table.tx-table th{
+    text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.05em;
+    color:var(--text-faint); font-weight:500; padding:6px 10px; border-bottom:1px solid var(--line);
+  }
+  table.tx-table td{
+    padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top;
+  }
+  table.tx-table tr:last-child td{ border-bottom:none; }
+  table.tx-table td.txid{ font-family:'JetBrains Mono', monospace; color:var(--text-dim); max-width:1px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  table.tx-table td.rank{ font-family:'JetBrains Mono', monospace; color:var(--text-faint); width:28px; }
+  table.tx-table td.btc{ font-family:'JetBrains Mono', monospace; color:var(--btc); text-align:right; white-space:nowrap; font-weight:500; }
+  .coinbase-tag{
+    display:inline-block; margin-left:8px; font-size:10.5px; padding:2px 6px;
+    border:1px solid var(--btc-dim); color:var(--btc); border-radius:2px; text-transform:uppercase; letter-spacing:0.04em;
+    font-family:'Space Grotesk', sans-serif;
+  }
+
+  .error-box{
+    border:1px solid var(--danger); background:rgba(229,72,77,0.08); color:var(--text);
+    padding:16px 20px; border-radius:var(--radius); font-size:14px; margin-bottom:20px;
+  }
+  .loading-box{
+    color:var(--text-dim); font-size:14px; padding:40px 0; text-align:center;
+  }
+  footer{
+    max-width:980px; margin:0 auto; padding:0 24px 60px; color:var(--text-faint); font-size:12.5px; line-height:1.6;
+  }
+  footer a{ color:var(--text-dim); }
+  @media (max-width:640px){
+    .head-meta{ display:none; }
+    .header-grid{ grid-template-columns:1fr; }
+    .header-grid dt{ padding-top:10px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Últimos 10 blocos da rede Bitcoin</h1>
+  <p class="sub">Dados lidos diretamente da API pública do mempool.space. Cada bloco pode ser expandido para revelar os seis campos do cabeçalho (os 80 bytes usados na mineração), os metadados calculados a partir dele e as 25 primeiras transações, ordenadas do maior para o menor valor movimentado.</p>
+  <div class="status-bar">
+    <div class="status-left">
+      <div class="status-item">
+        <span class="label"><span class="live-dot"></span>Altura da ponta da cadeia</span>
+        <span class="value" id="tipHeight">—</span>
+      </div>
+      <div class="status-item">
+        <span class="label">Próxima atualização</span>
+        <span class="value" id="countdown">—</span>
+      </div>
+    </div>
+    <button class="refresh" id="refreshBtn">Atualizar agora</button>
+  </div>
+</header>
+
+<main>
+  <div id="errorArea"></div>
+  <div id="loadingArea" class="loading-box">Carregando blocos…</div>
+  <div class="chain" id="chain"></div>
+</main>
+
+<footer>
+  Fonte dos dados: API pública do mempool.space (endpoints <span class="mono">/api/v1/blocks</span> e <span class="mono">/api/block/:hash/txs</span>). Atualização automática a cada 30 segundos. Valor movimentado por transação calculado pela soma das saídas (vout), em BTC.
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  const API = "https://mempool.space/api";
+  const REFRESH_SECONDS = 30;
+  const MAX_BLOCKS = 10;
+
+  const chainEl = document.getElementById("chain");
+  const loadingEl = document.getElementById("loadingArea");
+  const errorEl = document.getElementById("errorArea");
+  const tipHeightEl = document.getElementById("tipHeight");
+  const countdownEl = document.getElementById("countdown");
+  const refreshBtn = document.getElementById("refreshBtn");
+
+  let knownHeights = new Set();
+  let countdownValue = REFRESH_SECONDS;
+  let countdownTimer = null;
+  let openBlocks = new Set();   // heights currently expanded, preserved across refresh
+  let txCache = new Map();      // height -> sorted tx array
+
+  function fmtDate(ts){
+    const d = new Date(ts * 1000);
+    return d.toLocaleString("pt-BR", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit", second:"2-digit" });
+  }
+
+  function fmtNum(n){
+    return new Intl.NumberFormat("pt-BR").format(n);
+  }
+
+  function fmtBTC(sats){
+    return (sats / 1e8).toLocaleString("pt-BR", { minimumFractionDigits: 8, maximumFractionDigits: 8 });
+  }
+
+  function short(hash){
+    if(!hash) return "—";
+    return hash.slice(0,10) + " … " + hash.slice(-10);
+  }
+
+  function showError(msg){
+    errorEl.innerHTML = '<div class="error-box">' + msg + '</div>';
+  }
+  function clearError(){
+    errorEl.innerHTML = "";
+  }
+
+  async function fetchLatestBlocks(){
+    const res = await fetch(API + "/v1/blocks");
+    if(!res.ok) throw new Error("Falha ao consultar /v1/blocks (HTTP " + res.status + ")");
+    const data = await res.json();
+    return data.slice(0, MAX_BLOCKS);
+  }
+
+  async function fetchTxsForBlock(hash){
+    const res = await fetch(API + "/block/" + hash + "/txs/0");
+    if(!res.ok) throw new Error("Falha ao consultar transações (HTTP " + res.status + ")");
+    const txs = await res.json();
+    return txs.slice(0, 25).map(function(tx){
+      const total = (tx.vout || []).reduce(function(sum, o){ return sum + (o.value || 0); }, 0);
+      const isCoinbase = !!(tx.vin && tx.vin[0] && tx.vin[0].is_coinbase);
+      return { txid: tx.txid, total: total, isCoinbase: isCoinbase };
+    }).sort(function(a,b){ return b.total - a.total; });
+  }
+
+  function gridRows(rows){
+    return rows.map(function(r){
+      const cls = r[2] ? "" : " wrap-normal";
+      return '<dt>' + r[0] + '</dt><dd class="' + cls.trim() + '">' + r[1] + '</dd>';
+    }).join("");
+  }
+
+  // Os seis campos abaixo são, estritamente, o cabeçalho do bloco: os 80 bytes
+  // que compõem o header usado no cálculo do hash durante a mineração.
+  function headerFieldsHTML(b){
+    const rows = [
+      ["Versão", b.version, true],
+      ["Hash anterior", b.previousblockhash || "—", true],
+      ["Merkle root", b.merkle_root, true],
+      ["Timestamp", fmtDate(b.timestamp), false],
+      ["Bits (target)", b.bits, true],
+      ["Nonce", fmtNum(b.nonce), true],
+    ];
+    return gridRows(rows);
+  }
+
+  // Os campos abaixo não fazem parte do cabeçalho de 80 bytes: são metadados
+  // calculados a partir do cabeçalho (como o hash e a dificuldade) ou do
+  // corpo do bloco (como tamanho, peso e número de transações).
+  function metadataFieldsHTML(b){
+    const rows = [
+      ["Altura", fmtNum(b.height), true],
+      ["Hash do bloco", b.id, true],
+      ["Dificuldade", fmtNum(Math.round(b.difficulty)), false],
+      ["Nº de transações", fmtNum(b.tx_count), false],
+      ["Tamanho", fmtNum(b.size) + " bytes", false],
+      ["Peso (weight)", fmtNum(b.weight) + " WU", false],
+    ];
+    return gridRows(rows);
+  }
+
+  function txTableHTML(list){
+    if(!list || !list.length) return '<div class="tx-status">Nenhuma transação encontrada.</div>';
+    const rows = list.map(function(tx, i){
+      const tag = tx.isCoinbase ? '<span class="coinbase-tag">Recompensa</span>' : "";
+      return '<tr>' +
+        '<td class="rank">' + (i+1) + '</td>' +
+        '<td class="txid">' + tx.txid + tag + '</td>' +
+        '<td class="btc">' + fmtBTC(tx.total) + ' BTC</td>' +
+      '</tr>';
+    }).join("");
+    return '<table class="tx-table"><thead><tr><th>#</th><th>TXID</th><th>Valor movimentado</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+
+  function blockCardHTML(b, isNew){
+    const isOpen = openBlocks.has(b.height);
+    return (
+      '<div class="block' + (isOpen ? ' open' : '') + (isNew ? ' is-new' : '') + '" data-height="' + b.height + '" data-hash="' + b.id + '">' +
+        '<div class="node"></div>' +
+        '<div class="card">' +
+          '<div class="card-head" data-toggle="card">' +
+            '<div class="height-block">' +
+              '<span class="height-num">#' + fmtNum(b.height) + '</span>' +
+              '<span class="hash-preview">' + short(b.id) + '</span>' +
+            '</div>' +
+            '<div class="head-meta">' +
+              '<div class="m"><div class="n">' + fmtNum(b.tx_count) + '</div><div class="l">Transações</div></div>' +
+              '<div class="m"><div class="n">' + (b.size/1000).toFixed(0) + ' kB</div><div class="l">Tamanho</div></div>' +
+              '<div class="m"><div class="n">' + fmtDate(b.timestamp).split(", ")[1] + '</div><div class="l">Horário</div></div>' +
+            '</div>' +
+            '<svg class="chevron" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6L8 10L12 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+          '</div>' +
+          '<div class="card-body">' +
+            '<div class="section-block">' +
+              '<div class="section-label">' +
+                '<h3>Cabeçalho do bloco</h3>' +
+                '<span class="tag">80 bytes</span>' +
+                '<span class="hint">campos usados no cálculo do hash durante a mineração</span>' +
+              '</div>' +
+              '<dl class="header-grid">' + headerFieldsHTML(b) + '</dl>' +
+            '</div>' +
+            '<div class="section-block">' +
+              '<div class="section-label">' +
+                '<h3>Metadados adicionais</h3>' +
+                '<span class="hint">calculados a partir do cabeçalho e do corpo do bloco, não fazem parte dos 80 bytes</span>' +
+              '</div>' +
+              '<dl class="header-grid">' + metadataFieldsHTML(b) + '</dl>' +
+            '</div>' +
+            '<div class="tx-toggle">' +
+              '<button data-load-tx="' + b.height + '" data-hash="' + b.id + '">Ver as 25 maiores transações deste bloco</button>' +
+              '<div class="tx-list" id="tx-' + b.height + '"></div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>'
+    );
+  }
+
+  function render(blocks, newHeights){
+    chainEl.innerHTML = blocks.map(function(b){
+      return blockCardHTML(b, newHeights.has(b.height));
+    }).join("");
+
+    // restore already-fetched tx tables for open blocks
+    openBlocks.forEach(function(h){
+      if(txCache.has(h)){
+        const el = document.getElementById("tx-" + h);
+        if(el) el.innerHTML = txTableHTML(txCache.get(h));
+      }
+    });
+
+    // wire up card toggles
+    chainEl.querySelectorAll('[data-toggle="card"]').forEach(function(head){
+      head.addEventListener("click", function(){
+        const blockEl = head.closest(".block");
+        const h = Number(blockEl.getAttribute("data-height"));
+        blockEl.classList.toggle("open");
+        if(blockEl.classList.contains("open")) openBlocks.add(h);
+        else openBlocks.delete(h);
+      });
+    });
+
+    // wire up tx loaders
+    chainEl.querySelectorAll('[data-load-tx]').forEach(function(btn){
+      btn.addEventListener("click", async function(){
+        const h = Number(btn.getAttribute("data-load-tx"));
+        const hash = btn.getAttribute("data-hash");
+        const target = document.getElementById("tx-" + h);
+        if(txCache.has(h)){
+          target.innerHTML = txTableHTML(txCache.get(h));
+          return;
+        }
+        target.innerHTML = '<div class="tx-status">Carregando transações…</div>';
+        try{
+          const list = await fetchTxsForBlock(hash);
+          txCache.set(h, list);
+          target.innerHTML = txTableHTML(list);
+        }catch(err){
+          target.innerHTML = '<div class="tx-status">Não foi possível carregar as transações agora. ' + err.message + '</div>';
+        }
+      });
+    });
+  }
+
+  async function refresh(manual){
+    try{
+      const blocks = await fetchLatestBlocks();
+      const heights = blocks.map(function(b){ return b.height; });
+      const newHeights = new Set(heights.filter(function(h){ return !knownHeights.has(h); }));
+      if(knownHeights.size === 0) newHeights.clear(); // don't flash on first load
+      knownHeights = new Set(heights);
+
+      tipHeightEl.textContent = "#" + fmtNum(blocks[0].height);
+      loadingEl.style.display = "none";
+      clearError();
+      render(blocks, newHeights);
+    }catch(err){
+      loadingEl.style.display = "none";
+      showError("Não foi possível carregar os blocos agora. Verifique sua conexão com a internet e tente novamente em instantes. (" + err.message + ")");
+    }finally{
+      if(manual) resetCountdown();
+    }
+  }
+
+  function resetCountdown(){
+    countdownValue = REFRESH_SECONDS;
+    countdownEl.textContent = countdownValue + "s";
+  }
+
+  function startCountdown(){
+    resetCountdown();
+    if(countdownTimer) clearInterval(countdownTimer);
+    countdownTimer = setInterval(function(){
+      countdownValue -= 1;
+      if(countdownValue <= 0){
+        refresh(false);
+        resetCountdown();
+      }else{
+        countdownEl.textContent = countdownValue + "s";
+      }
+    }, 1000);
+  }
+
+  refreshBtn.addEventListener("click", function(){ refresh(true); });
+
+  refresh(true);
+  startCountdown();
+
+})();
+</script>
+
+</body>
+</html>
